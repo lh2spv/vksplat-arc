@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# 3DGS / training artifacts
+*.ply
+*.spv
+vksplat_out/
+out_*/
+third_party/
+build/
+
+# data
+images/
+images_[0-9]*/
+sparse/
+*.db
+
+# misc
+*.log
+.DS_Store

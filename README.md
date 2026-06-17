@@ -1,106 +1,107 @@
 # vksplat-arc
 
-**Free, fully-local, license-free 3D Gaussian Splatting on an Intel Arc iGPU — no NVIDIA, no cloud.**
+**完全無料・完全ローカル・ライセンスフリーの 3D ガウシアンスプラッティングを Intel Arc 内蔵GPUで — NVIDIA不要・クラウド不要。**
 
-Helper scripts + a setup guide for training [3D Gaussian Splatting](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/)
-with [VkSplat](https://github.com/harry7557558/vksplat) (Vulkan compute, Apache-2.0)
-on an Intel Arc 140V. Verified end-to-end on Windows 11.
+[VkSplat](https://github.com/harry7557558/vksplat)（Vulkan compute, Apache-2.0）を使い、
+[3D Gaussian Splatting](https://repo-sam.inria.fr/fungraph/3d-gaussian-splatting/) を
+Intel Arc 140V で学習するためのヘルパースクリプトとセットアップ手順です。
+Windows 11 でエンドツーエンド動作確認済み。
 
-> This repo contains only the wrapper scripts and documentation. VkSplat itself,
-> COLMAP, and the Vulkan SDK are installed separately (links below).
+> このリポジトリには**ラッパースクリプトと手順だけ**を収録しています。
+> VkSplat 本体・COLMAP・Vulkan SDK は別途インストールします（下記リンク参照）。
 
-## Why this combination
+## なぜこの組み合わせなのか
 
-The goal was 3DGS that is **free + fully local + license-free**, on a machine with
-no NVIDIA GPU. The options:
+目標は **無料 + 完全ローカル + ライセンスフリー** な 3DGS を、NVIDIA GPU の無いマシンで実現すること。
+選択肢は次の通りです:
 
-| Backend | Free | Runs on Intel Arc | License |
+| バックエンド | 無料 | Intel Arc で動く | ライセンス |
 |---|---|---|---|
-| Original 3DGS (Inria, CUDA) | ✅ | ❌ CUDA-only | ❌ research / non-commercial |
-| gsplat (nerfstudio) | ✅ | ❌ CUDA-only | ✅ Apache-2.0 |
-| **VkSplat (Vulkan)** | ✅ | ✅ | ✅ **Apache-2.0** |
+| オリジナル 3DGS（Inria, CUDA） | ✅ | ❌ CUDA専用 | ❌ 研究・非商用 |
+| gsplat（nerfstudio） | ✅ | ❌ CUDA専用 | ✅ Apache-2.0 |
+| **VkSplat（Vulkan）** | ✅ | ✅ | ✅ **Apache-2.0** |
 
-Only VkSplat clears all three: permissive license **and** it runs on the Arc's
-Vulkan backend. (`gsplat` shares the license but needs CUDA; the Inria reference
-runs nowhere without NVIDIA and is non-commercial.)
+3条件すべてを満たすのは VkSplat だけです。寛容なライセンスを持ち、**かつ** Arc の Vulkan
+バックエンドで動きます。（`gsplat` はライセンスは同じでも CUDA が必要。Inria 版は NVIDIA が
+無いと動かず、しかも非商用です。）
 
-## What's here
+## 収録物
 
-- `scripts/photos_to_colmap.py` — photos → COLMAP workspace (offline CPU SfM).
-- `scripts/downscale.py` — make a 1/N image copy; the biggest training-speed lever.
-- `scripts/train_vksplat.py` — path-safe driver around VkSplat's `simple_trainer`,
-  with a live browser viewer flag.
+- `scripts/photos_to_colmap.py` — 写真 → COLMAP ワークスペース（オフラインCPU SfM）。
+- `scripts/downscale.py` — 画像を 1/N に縮小。学習速度の最大のレバー。
+- `scripts/train_vksplat.py` — VkSplat の `simple_trainer` をパス安全に呼ぶドライバ。
+  ライブブラウザビューア用フラグ付き。
 
-## Prerequisites
+## 前提条件
 
-- **Vulkan SDK** — `winget install KhronosGroup.VulkanSDK` (sets `VULKAN_SDK`).
-- **C++17 compiler** — MSVC (Visual Studio 2022 Build Tools) on Windows.
-- **Python 3.8+** with `setuptools pybind11 numpy opencv-python tqdm`.
-  (A fresh `python -m venv` omits `setuptools` — install it explicitly.)
-- **COLMAP** — any build works; a no-CUDA `colmap.exe` keeps it fully local.
+- **Vulkan SDK** — `winget install KhronosGroup.VulkanSDK`（`VULKAN_SDK` が設定される）。
+- **C++17 コンパイラ** — Windows では MSVC（Visual Studio 2022 Build Tools）。
+- **Python 3.8+** と `setuptools pybind11 numpy opencv-python tqdm`。
+  （`python -m venv` で作った新規環境には `setuptools` が入らないので明示的に導入。）
+- **COLMAP** — どのビルドでも可。CUDA無しの `colmap.exe` なら完全ローカルを保てます。
 
-## Build VkSplat
+## VkSplat のビルド
 
 ```bash
 git clone https://github.com/harry7557558/vksplat
 cd vksplat/vksplat
-# with VULKAN_SDK set in the environment:
+# 環境変数 VULKAN_SDK を設定した状態で:
 python -m pip install -e . --no-build-isolation --no-deps -v
 ```
 
-`--no-deps` skips `torchmetrics`/`torch` (only needed for evaluation, not training).
-GLM is auto-cloned; the SPIR-V shaders ship precompiled.
+`--no-deps` で `torchmetrics`/`torch` をスキップ（評価時のみ必要で、学習には不要）。
+GLM は自動 clone され、SPIR-V シェーダはコンパイル済みで同梱されています。
 
-### Gotchas that cost real debugging time
+### 実際にハマったポイント
 
-1. **Import from the package dir.** A folder named `vksplat` on your path shadows
-   the built `.pyd`. Run the trainer from inside `vksplat/vksplat/`, or pass
-   `--vksplat-dir`.
-2. **`mask_dir` must be `""`, not `None`** — `None` fails the C++ cast. (Handled.)
-3. **`sparse_dir` / `image_dir` need a trailing separator and an absolute path** —
-   the C++ does naive string concat (`sparse_dir + "cameras.bin"`). (Handled.)
+1. **パッケージディレクトリ内から import する。** パス上に `vksplat` という名前のフォルダが
+   あると、ビルドした `.pyd` が隠されます。`vksplat/vksplat/` の中から実行するか、
+   `--vksplat-dir` を指定してください。
+2. **`mask_dir` は `None` ではなく `""`** — `None` は C++ のキャストで失敗します（対応済み）。
+3. **`sparse_dir` / `image_dir` は末尾区切り付きの絶対パス** — C++ 側が単純な文字列連結
+   （`sparse_dir + "cameras.bin"`）を行うためです（対応済み）。
 
-## Use it
+## 使い方
 
 ```bash
-# 1. photos -> COLMAP poses (skip if you already have sparse/0)
+# 1. 写真 -> COLMAP のカメラ姿勢（すでに sparse/0 があればスキップ）
 python scripts/photos_to_colmap.py path/to/photos --colmap path/to/colmap.exe
 
-# 2. downscale for speed (1/4 res = ~13x faster; intrinsics auto-adjust)
+# 2. 高速化のための縮小（1/4解像度で約13倍速。intrinsics は自動補正）
 python scripts/downscale.py path/to/workspace/images 4
 
-# 3. train (run from the VkSplat package dir, or pass --vksplat-dir)
+# 3. 学習（VkSplat パッケージディレクトリ内で実行するか --vksplat-dir を指定）
 python scripts/train_vksplat.py path/to/workspace --image-dir images_4 --steps 15000
 ```
 
-Output: `path/to/workspace/vksplat_out/splat.ply` (standard 3DGS PLY) + validation renders.
+出力: `path/to/workspace/vksplat_out/splat.ply`（標準3DGS PLY形式）+ 検証用レンダリング。
 
-## Speed
+## 速度
 
-Per-pixel rasterization is ~88% of step time, so **input resolution is the dominant
-lever**. On the Arc 140V (mini scene, 13 training images):
+per-pixel のラスタライズが処理時間の約88%を占めるため、**入力解像度が支配的なレバー**です。
+Arc 140V（小規模シーン、学習画像13枚）での実測:
 
-| Image res | Throughput | 1000 steps |
+| 画像解像度 | スループット | 1000ステップ |
 |---|---|---|
-| full (3072×2304) | ~9 steps/s | 108 s |
-| 1/4 (`images_4`) | ~120 steps/s | 8.3 s |
+| フル（3072×2304） | 約9 steps/s | 108秒 |
+| 1/4（`images_4`） | 約120 steps/s | 8.3秒 |
 
-A full 15000-step train at `images_4` took ~5.7 min (≈280k splats). Use
-`--image-dir images_2` for a quality/speed middle ground, `--cache gpu` (default)
-when images fit in VRAM.
+`images_4` での15000ステップのフル学習は約5.7分（約28万 splats）でした。
+品質と速度の中間が欲しければ `--image-dir images_2`、画像が VRAM に収まるなら
+`--cache gpu`（デフォルト）を使います。
 
-## View the result
+## 結果を表示する
 
-- **Live, in-browser, during training:** add `--viewer` and open
-  `http://localhost:7007`. The Arc renders frames and streams them to the browser.
-- **The saved `splat.ply`** is standard 3DGS format — open it in any splat viewer,
-  e.g. [Brush](https://github.com/ArthurBrussee/brush) (`brush_app <splat.ply>`,
-  Apache-2.0, WebGPU) locally or its web demo.
+- **学習中にブラウザでライブ表示:** `--viewer` を付けて `http://localhost:7007` を開く。
+  Arc がフレームを描画し、ブラウザにストリーミングします。
+- **保存された `splat.ply`** は標準3DGS形式なので、任意のスプラットビューアで開けます。
+  例: [Brush](https://github.com/ArthurBrussee/brush)（`brush_app <splat.ply>`、Apache-2.0、
+  WebGPU）をローカルで、または Web デモで。
 
-## Credits & licenses
+## クレジット & ライセンス
 
 - [VkSplat](https://github.com/harry7557558/vksplat) — Apache-2.0
 - [COLMAP](https://github.com/colmap/colmap) — BSD
 - [Brush](https://github.com/ArthurBrussee/brush) — Apache-2.0
 
-The scripts in this repo are released under Apache-2.0 (see `LICENSE`).
+このリポジトリのスクリプトは Apache-2.0 で公開しています（`LICENSE` 参照）。

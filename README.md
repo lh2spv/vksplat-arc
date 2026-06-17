@@ -34,23 +34,44 @@ Windows 11 でエンドツーエンド動作確認済み。
 
 ## 前提条件
 
-- **Vulkan SDK** — `winget install KhronosGroup.VulkanSDK`（`VULKAN_SDK` が設定される）。
-- **C++17 コンパイラ** — Windows では MSVC（Visual Studio 2022 Build Tools）。
-- **Python 3.8+** と `setuptools pybind11 numpy opencv-python tqdm`。
+- **Vulkan SDK** — `winget install KhronosGroup.VulkanSDK`。
+  これで `VULKAN_SDK` が**システム環境変数**に設定されますが、**すでに開いている端末には反映されません**。
+  インストール後は**新しい端末を開く**か、手動で設定してください（下の「VkSplat のビルド」参照）。
+- **C++17 コンパイラ** — Windows では MSVC。未導入なら
+  `winget install Microsoft.VisualStudio.2022.BuildTools` を実行し、インストーラで
+  「**C++ によるデスクトップ開発**」ワークロードを選択します。
+- **Python 3.8+**（検証は 3.12）と `setuptools pybind11 numpy opencv-python tqdm`。
   （`python -m venv` で作った新規環境には `setuptools` が入らないので明示的に導入。）
 - **COLMAP** — どのビルドでも可。CUDA無しの `colmap.exe` なら完全ローカルを保てます。
+  Windows 用バイナリは [COLMAP リリース](https://github.com/colmap/colmap/releases)
+  から入手できます（`colmap-x.x-windows-no-cuda.zip` など）。
 
 ## VkSplat のビルド
 
 ```bash
 git clone https://github.com/harry7557558/vksplat
-cd vksplat/vksplat
-# 環境変数 VULKAN_SDK を設定した状態で:
+cd vksplat/vksplat        # ← 内側の vksplat/ で作業（setup.py がある場所）
 python -m pip install -e . --no-build-isolation --no-deps -v
+```
+
+ビルドには `VULKAN_SDK` が**現在の端末に**設定されている必要があります。winget 導入直後で
+反映されていない場合は、明示的に設定してから実行してください（実際のパスに合わせる）:
+
+```powershell
+# Windows PowerShell
+$env:VULKAN_SDK = 'C:\VulkanSDK\1.4.350.0'
+```
+```bash
+# bash (Linux/macOS/Git Bash)
+export VULKAN_SDK=/path/to/VulkanSDK
 ```
 
 `--no-deps` で `torchmetrics`/`torch` をスキップ（評価時のみ必要で、学習には不要）。
 GLM は自動 clone され、SPIR-V シェーダはコンパイル済みで同梱されています。
+
+> 弱い Intel iGPU で「Shaders must be compiled with USE_XXX=1」と出る場合は、
+> 上流 README に従い `vksplat/slang/config.slang` の `USE_EMULATED_*` を調整して
+> シェーダを再コンパイルします。Arc 140V はネイティブ対応のため不要でした。
 
 ### 実際にハマったポイント
 
@@ -70,11 +91,21 @@ python scripts/photos_to_colmap.py path/to/photos --colmap path/to/colmap.exe
 # 2. 高速化のための縮小（1/4解像度で約13倍速。intrinsics は自動補正）
 python scripts/downscale.py path/to/workspace/images 4
 
-# 3. 学習（VkSplat パッケージディレクトリ内で実行するか --vksplat-dir を指定）
-python scripts/train_vksplat.py path/to/workspace --image-dir images_4 --steps 15000
+# 3. 学習: --vksplat-dir でビルド済み VkSplat パッケージの場所を指定
+python scripts/train_vksplat.py path/to/workspace \
+    --vksplat-dir path/to/vksplat/vksplat \
+    --image-dir images_4 --steps 15000
 ```
 
+`--vksplat-dir` には**ビルドした `.pyd` と `simple_trainer.py` がある内側の
+`vksplat/vksplat/` フォルダ**を渡します。代わりにそのフォルダへ `cd` してから
+`train_vksplat.py` を実行しても構いません（その場合 `--vksplat-dir` は不要）。
+
 出力: `path/to/workspace/vksplat_out/splat.ply`（標準3DGS PLY形式）+ 検証用レンダリング。
+
+> **撮影のコツ:** 被写体の周りを少しずつ角度を変えて、隣り合う写真が 60〜80% 重なるように
+> 20〜数百枚撮ると安定します。重なりが足りないと COLMAP が姿勢を復元できず、
+> `mapper produced no model` で止まります。
 
 ## 速度
 

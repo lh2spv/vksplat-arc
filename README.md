@@ -92,11 +92,39 @@ Arc 140V（小規模シーン、学習画像13枚）での実測:
 
 ## 結果を表示する
 
-- **学習中にブラウザでライブ表示:** `--viewer` を付けて `http://localhost:7007` を開く。
-  Arc がフレームを描画し、ブラウザにストリーミングします。
-- **保存された `splat.ply`** は標準3DGS形式なので、任意のスプラットビューアで開けます。
-  例: [Brush](https://github.com/ArthurBrussee/brush)（`brush_app <splat.ply>`、Apache-2.0、
-  WebGPU）をローカルで、または Web デモで。
+### A. 学習中にライブ表示（ブラウザ）
+
+`train_vksplat.py` に `--viewer` を付けて実行し、ブラウザで `http://localhost:7007` を開きます。
+Arc がフレームを描画してブラウザにストリーミングし、マウスで視点を操作できます。
+
+```bash
+python scripts/train_vksplat.py path/to/workspace --image-dir images_4 --steps 15000 --viewer
+```
+
+> ⚠️ このビューアは**学習プロセスが動いている間だけ**有効です（学習が終わるとプロセスと
+> 一緒に閉じます）。保存済みのモデルを後からいつでも見たい場合は下の B を使います。
+
+### B. 保存された `splat.ply` を後から表示
+
+学習が終わると `path/to/workspace/vksplat_out/splat.ply` が生成されます。これは
+**標準の 3DGS PLY 形式**（`x, y, z, f_dc_*, f_rest_*, opacity, scale_*, rot_*`）なので、
+ほとんどのガウシアンスプラットビューアでそのまま開けます。
+
+**ローカルアプリ（完全オフライン）— [Brush](https://github.com/ArthurBrussee/brush)（Apache-2.0, WebGPU）:**
+
+```bash
+# Windows
+brush_app.exe path/to/workspace/vksplat_out/splat.ply
+# macOS / Linux
+brush_app path/to/workspace/vksplat_out/splat.ply
+```
+
+**ブラウザ（ドラッグ＆ドロップ、描画はローカルの WebGPU で実行）:**
+
+- [Brush Web デモ](https://arthurbrussee.github.io/brush-demo) に `splat.ply` をドロップ
+- または [SuperSplat](https://supersplat.playcanvas.com)（PlayCanvas, ブラウザ内で完結）
+
+> どのビューアもファイルはアップロードされず、描画は各自の GPU 上で行われます。
 
 ## クレジット & ライセンス
 

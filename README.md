@@ -25,6 +25,30 @@ Windows 11 でエンドツーエンド動作確認済み。
 バックエンドで動きます。（`gsplat` はライセンスは同じでも CUDA が必要。Inria 版は NVIDIA が
 無いと動かず、しかも非商用です。）
 
+## ビルドしたくない人向けの最短ルート: Brush
+
+VkSplat は研究用コードで配布バイナリが無いため、**C++ 拡張を自分でビルドする必要があります**
+（Vulkan SDK + MSVC が前提）。「無料・ローカル・ライセンスフリーの 3DGS が動けばよく、
+ビルドは避けたい」場合は、[**Brush**](https://github.com/ArthurBrussee/brush) が最短です。
+
+| | VkSplat（このリポジトリ） | Brush |
+|---|---|---|
+| ビルド | **必要**（Vulkan SDK + MSVC） | **不要**（実行ファイル配布・Web版あり） |
+| バックエンド | Vulkan | WebGPU |
+| ライセンス | Apache-2.0 | Apache-2.0 |
+| Intel Arc | ✅ | ✅ |
+| 学習 / 表示 | ✅ / ✅ | ✅ / ✅ |
+| 速度・調整 | 速い・細かく調整可 | 手軽（ベンチは環境次第） |
+
+- **ゼロインストール:** [Brush Web デモ](https://arthurbrussee.github.io/brush-demo) に
+  COLMAP ワークスペース（`images/` + `sparse/0/` を含む zip）をドロップするだけで学習・表示。
+- **ローカルアプリ:** [Brush リリース](https://github.com/ArthurBrussee/brush/releases) の
+  `brush_app` を入手し、`brush_app <ワークスペース>` で学習、`brush_app <splat.ply>` で表示。
+
+入力はどちらも同じ COLMAP 形式なので、`scripts/photos_to_colmap.py` の出力をそのまま使えます。
+**速度や細かい制御が要らないなら Brush で十分**。Vulkan の速度と調整幅が欲しい場合に、
+以下の VkSplat ビルドへ進んでください。
+
 ## 収録物
 
 - `scripts/photos_to_colmap.py` — 写真 → COLMAP ワークスペース（オフラインCPU SfM）。
